@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+langchain
+langchain-google-genai
+langchain-chroma
+chromadb
+youtube-transcript-api
+python-dotenv
+requests
+httpx
+yt-dlp
+google-generativeai
+sse-starlette

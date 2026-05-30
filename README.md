@@ -48,42 +48,30 @@ The goal is to help creators understand why one video performed better than anot
 
 ---
 
-## System Overview
+## 🧠 System Architecture
 
-           ┌──────────────────────────────┐
-           │      Frontend (Swagger / UI) │
-           └──────────────┬───────────────┘
-                          │
-                          ▼
-           ┌──────────────────────────────┐
-           │      FastAPI Backend         │
-           │  /api/process-videos         │
-           │  /api/chat                   │
-           └──────────────┬───────────────┘
-                          │
-        ┌─────────────────┼──────────────────┐
-        ▼                 ▼                  ▼
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│ YouTube Flow │  │ Instagram Flow│  │ Embedding    │
-│              │  │              │  │ Pipeline     │
-└──────┬───────┘  └──────┬───────┘  └──────┬───────┘
-       │                 │                 │
-       ▼                 ▼                 ▼
- yt-dlp + transcript   yt-dlp + audio   Gemini Embeddings
- API (fallback + SS)   extraction       (batchEmbedContents)
-       │                 │                 │
-       └──────┬──────────┴──────────┬──────┘
-              ▼                     ▼
-        Smart Chunking        Vector Store
-        (RAG chunks)          (ChromaDB)
-              │                     │
-              └──────────┬──────────┘
-                         ▼
-                 RAG Chat System
-                 (Gemini LLM)
-                         │
-                         ▼
-              Streaming Response API
+```mermaid
+flowchart TD
+
+    A[Frontend (Swagger / UI)] --> B[FastAPI Backend]
+
+    B --> C[YouTube Pipeline]
+    B --> D[Instagram Pipeline]
+    B --> E[Embedding Pipeline]
+
+    C --> C1[yt-dlp + YouTube Transcript API]
+    D --> D1[yt-dlp + Whisper Audio Transcription]
+
+    C1 --> F[Smart Chunking]
+    D1 --> F
+
+    F --> G[Gemini Embeddings API]
+
+    G --> H[ChromaDB Vector Store]
+
+    H --> I[RAG Chat System (Gemini LLM)]
+
+    I --> J[Streaming Response API]
 
 ## Run Backend
 

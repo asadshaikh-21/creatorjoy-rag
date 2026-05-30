@@ -29,36 +29,51 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 # --------------------------
 def embed_batch(texts: List[str], retries: int = 3):
     """
-    Single API call batch embedding (FAST + CHEAP)
+    Embed each chunk individually.
+    More reliable with Gemini SDK.
     """
     texts = [t for t in texts if t and t.strip()]
 
     if not texts:
         return []
 
-    for attempt in range(retries):
-        try:
-            response = client.models.embed_content(
-                model="models/gemini-embedding-2",
-                contents=texts
+    vectors = []
+
+    for text in texts:
+        success = False
+
+        for attempt in range(retries):
+            try:
+                response = client.models.embed_content(
+                    model="models/gemini-embedding-2",
+                    contents=text
+                )
+
+                vectors.append(
+                    response.embeddings[0].values
+                )
+
+                success = True
+                break
+
+            except Exception as e:
+                logger.warning(
+                    f"[EMBED RETRY {attempt+1}] {e}"
+                )
+                time.sleep(1.5 * (attempt + 1))
+
+        if not success:
+            logger.error(
+                f"[EMBED FAILED] chunk skipped"
             )
-            return [e.values for e in response.embeddings]
 
-        except Exception as e:
-            logger.warning(f"[EMBED RETRY {attempt+1}] {e}")
-            time.sleep(1.5 * (attempt + 1))
-
-    logger.error("[EMBED FAILED] returning zero vectors")
-    return [[] for _ in texts]
-
-
+    return vectors
 # --------------------------
 # EMBEDDING WRAPPER (LANGCHAIN)
 # --------------------------
 class GeminiEmbeddingWrapper:
     def embed_documents(self, texts: List[str]):
-        vectors = embed_batch(texts)
-        return vectors
+        return embed_batch(texts)
 
     def embed_query(self, text: str):
         vecs = embed_batch([text])
@@ -108,9 +123,6 @@ def embed_video_transcript(video_data: dict, session_id: str) -> int:
         logger.warning(f"No chunks → skipping {label}")
         return 0
 
-    # IMPORTANT: pre-check embeddings before storing
-    vectors = embed_batch(chunks)
-
     documents = []
 
     for i, chunk in enumerate(chunks):
@@ -126,6 +138,12 @@ def embed_video_transcript(video_data: dict, session_id: str) -> int:
                     "likes": metadata.get("likes", 0),
                     "comments": metadata.get("comments", 0),
                     "engagement_rate": metadata.get("engagement_rate", 0),
+
+                    # Works for both YouTube & Instagram
+                    "source": metadata.get("source", "youtube"),
+                    "url": metadata.get("url", ""),
+                    "chunk_id": f"{label}_{i}",
+
                     "chunk_index": i,
                     "session_id": session_id,
                 }
@@ -137,7 +155,7 @@ def embed_video_transcript(video_data: dict, session_id: str) -> int:
 
         store.add_documents(documents)
 
-        # ensure persistence
+        # Chroma persistence
         try:
             store.persist()
         except Exception:

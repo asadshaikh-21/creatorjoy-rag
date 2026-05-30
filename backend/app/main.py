@@ -7,6 +7,7 @@ import uuid
 import json
 import logging
 from dotenv import load_dotenv
+from app.services.ingestion_service import process_instagram
 
 load_dotenv()
 
@@ -27,6 +28,14 @@ app = FastAPI(
     title="CreatorJoy RAG API",
     version="1.0.0"
 )
+
+def process_video(url: str):
+
+    if "instagram.com" in url:
+        return process_instagram(url)
+
+    # fallback to YouTube
+    return process_youtube(url)
 
 # -------------------------
 # CORS

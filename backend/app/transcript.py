@@ -2,7 +2,11 @@ import re
 import json
 import subprocess
 from typing import Dict, Any, List
-
+from yt_dlp import YoutubeDL
+from youtube_transcript_api import YouTubeTranscriptApi
+from app.ingestion.instagram import fetch_instagram_info
+from app.ingestion.audio_extractor import extract_audio
+from app.ingestion.whisper import transcribe_audio
 from youtube_transcript_api import YouTubeTranscriptApi
 
 
@@ -43,38 +47,25 @@ def smart_chunk(text: str, max_words: int = 80) -> List[str]:
 
     return [clean_text(c) for c in chunks if c.strip()]
 
-
 # -----------------------------
 # TRANSCRIPT FETCH (ROBUST)
 # -----------------------------
+from youtube_transcript_api import YouTubeTranscriptApi
+
 def safe_transcript_fetch(video_id: str):
-
-    # 1. Try standard English
-    try:
-        return YouTubeTranscriptApi.get_transcript(video_id, languages=["en"])
-    except:
-        pass
-
-    # 2. Try auto-generated + multi language fallback
     try:
         api = YouTubeTranscriptApi()
-        transcripts = api.list_transcripts(video_id)
-
-        for t in transcripts:
-            try:
-                fetched = t.fetch()
-                return [
-                    {"text": item.text, "start": item.start}
-                    for item in fetched
-                ]
-            except:
-                continue
-    except:
-        pass
-
-    return []
-
-
+        fetched = api.fetch(video_id)
+        return [
+            {
+                "text": snippet.text,
+                "start": snippet.start,
+            }
+            for snippet in fetched
+        ]
+    except Exception as e:
+        print(f"[TRANSCRIPT ERROR] {e}")
+        return []
 # -----------------------------
 # YOUTUBE TRANSCRIPT MAIN
 # -----------------------------
@@ -172,12 +163,31 @@ def get_youtube_transcript(url: str) -> Dict[str, Any]:
 # -----------------------------
 def get_instagram_transcript(url: str):
 
+    metadata = fetch_instagram_info(url)
+
+    audio_path = extract_audio(url)
+
+    transcript = transcribe_audio(audio_path)
+
+    chunks = smart_chunk(transcript, max_words=80)
+
     return {
         "success": True,
-        "transcript": "Instagram content not supported yet",
-        "chunks": ["Instagram content not supported yet"],
-        "timestamps": [0],
-        "metadata": {"platform": "instagram"},
+        "transcript": transcript,
+        "chunks": chunks,
+        "timestamps": list(range(len(chunks))),
+        "metadata": {
+            "video_id": metadata.get("video_id", "instagram"),
+            "title": metadata.get("title", "Instagram Reel"),
+            "creator": metadata.get("creator", "Unknown"),
+            "platform": "instagram",
+            "source": "instagram",
+            "views": metadata.get("views", 0),
+            "likes": metadata.get("likes", 0),
+            "comments": metadata.get("comments", 0),
+            "duration": metadata.get("duration", 0),
+            "url": url,
+        },
         "label": ""
     }
 
@@ -187,12 +197,16 @@ def get_instagram_transcript(url: str):
 # -----------------------------
 def get_video_data(url: str, video_label: str):
 
-    if "youtube.com" in url or "youtu.be" in url:
+    url_lower = url.lower()
+
+    if "youtube.com" in url_lower or "youtu.be" in url_lower:
         data = get_youtube_transcript(url)
-    elif "instagram.com" in url:
+
+    elif "instagram.com" in url_lower:
         data = get_instagram_transcript(url)
+
     else:
-        raise ValueError("Unsupported URL")
+        raise ValueError(f"Unsupported URL: {url}")
 
     meta = data["metadata"]
 

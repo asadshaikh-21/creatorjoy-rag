@@ -1,189 +1,190 @@
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.memory import ConversationBufferMemory
-from langchain.chains import ConversationalRetrievalChain
-from langchain.prompts import PromptTemplate
-from langchain_core.messages import HumanMessage, AIMessage
-from .embeddings import get_vector_store
 import os
 from dotenv import load_dotenv
+from typing import List, Dict, Any
+
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+
+from .embeddings import get_vector_store
 
 load_dotenv()
 
-# Store memory per session
-session_memories = {}
-session_histories = {}
+# -----------------------------
+# CONFIG (IMPORTANT FIX)
+# -----------------------------
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-def get_llm(streaming=False):
-    """Get Gemini LLM"""
+# Use ONLY available model from your API list
+CHAT_MODEL = os.getenv("GEMINI_CHAT_MODEL", "gemini-2.5-flash")
+
+session_histories: Dict[str, List[Dict]] = {}
+
+
+# -----------------------------
+# LLM (PRODUCTION SAFE)
+# -----------------------------
+def get_llm(streaming: bool = False):
     return ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash",
-        google_api_key=os.getenv("GEMINI_API_KEY"),
-        temperature=0.3,
+        model=CHAT_MODEL,
+        google_api_key=GEMINI_API_KEY,
+        temperature=0.2,
         streaming=streaming,
     )
 
-SYSTEM_PROMPT = """You are an expert content analyst AI for CreatorJoy, helping creators understand their video performance.
 
-You have access to transcripts and metadata for Video A and Video B.
+# -----------------------------
+# CONTEXT BUILDER
+# -----------------------------
+def build_context(docs) -> str:
+    if not docs:
+        return "No relevant context found."
 
-When answering:
-1. Always cite which video (Video A or Video B) your information comes from
-2. Use specific data points (engagement rates, views, likes, comments)
-3. Be specific about timestamps or content sections when relevant
-4. Give actionable, creator-focused insights
-5. Compare videos objectively using data
+    parts = []
+    for doc in docs:
+        m = doc.metadata or {}
 
-Context from videos:
+        parts.append(
+            f"""
+VIDEO: {m.get("video_label")}
+TITLE: {m.get("title")}
+CREATOR: {m.get("creator")}
+VIEWS: {m.get("views")}
+LIKES: {m.get("likes")}
+COMMENTS: {m.get("comments")}
+ENGAGEMENT: {m.get("engagement_rate")}
+
+CONTENT:
+{doc.page_content}
+""".strip()
+        )
+
+    return "\n\n---\n\n".join(parts)
+
+
+SYSTEM_PROMPT = """
+You are a professional AI content analyst.
+
+You compare Video A vs Video B using ONLY provided context.
+
+Context:
 {context}
 
-Chat History:
-{chat_history}
+History:
+{history}
 
-Question: {question}
+Question:
+{question}
 
-Answer with specific citations (e.g., "In Video A..." or "Video B's transcript shows..."):"""
+Rules:
+- Never hallucinate
+- Always compare A vs B when relevant
+- Use numbers (views, likes, engagement_rate)
+- Structure output:
+  1. Summary
+  2. Video A
+  3. Video B
+  4. Differences
+  5. Insight
+"""
 
-def get_rag_chain(session_id: str):
-    """Build RAG chain for a session"""
-    
-    vector_store = get_vector_store(session_id)
-    retriever = vector_store.as_retriever(
-        search_type="mmr",  # Maximum Marginal Relevance for diverse results
-        search_kwargs={
-            "k": 6,
-            "fetch_k": 12,
-        }
-    )
-    
-    if session_id not in session_memories:
-        session_memories[session_id] = ConversationBufferMemory(
-            memory_key="chat_history",
-            return_messages=True,
-            output_key="answer"
-        )
-    
-    prompt = PromptTemplate(
-        input_variables=["context", "chat_history", "question"],
-        template=SYSTEM_PROMPT
-    )
-    
-    chain = ConversationalRetrievalChain.from_llm(
-        llm=get_llm(),
-        retriever=retriever,
-        memory=session_memories[session_id],
-        combine_docs_chain_kwargs={"prompt": prompt},
-        return_source_documents=True,
-        verbose=False,
-    )
-    
-    return chain
 
+# -----------------------------
+# SAFE RETRIEVAL
+# -----------------------------
+def safe_retrieve(retriever, query: str, k: int = 6):
+    try:
+        docs = retriever.invoke(query)
+        return docs[:k] if docs else []
+    except Exception:
+        return []
+
+
+# -----------------------------
+# CHAT (NON STREAM)
+# -----------------------------
 async def chat_with_rag(session_id: str, question: str):
-    """Chat with RAG and return response with sources"""
-    
-    chain = get_rag_chain(session_id)
-    
-    result = chain.invoke({"question": question})
-    
-    answer = result.get("answer", "")
-    source_docs = result.get("source_documents", [])
-    
-    # Format sources
-    sources = []
-    seen = set()
-    for doc in source_docs:
-        meta = doc.metadata
-        source_key = f"{meta.get('video_id')}_{meta.get('chunk_index')}"
-        if source_key not in seen:
-            seen.add(source_key)
-            sources.append({
-                "video": meta.get("video_label", "Unknown"),
-                "platform": meta.get("platform", "unknown"),
-                "creator": meta.get("creator", "Unknown"),
-                "chunk": doc.page_content[:150] + "...",
-            })
-    
-    # Store history
-    if session_id not in session_histories:
-        session_histories[session_id] = []
-    session_histories[session_id].append({
-        "role": "user",
-        "content": question
+
+    store = get_vector_store(session_id)
+    retriever = store.as_retriever(search_kwargs={"k": 8})
+
+    docs = safe_retrieve(retriever, question)
+
+    context = build_context(docs)
+
+    history = session_histories.get(session_id, [])
+    history_text = "\n".join(
+        f"{m['role']}: {m['content']}" for m in history[-6:]
+    )
+
+    prompt = ChatPromptTemplate.from_template(SYSTEM_PROMPT)
+    llm = get_llm(streaming=False)
+
+    chain = prompt | llm | StrOutputParser()
+
+    response = await chain.ainvoke({
+        "context": context,
+        "history": history_text,
+        "question": question
     })
-    session_histories[session_id].append({
-        "role": "assistant", 
-        "content": answer,
-        "sources": sources
-    })
-    
+
+    session_histories.setdefault(session_id, [])
+    session_histories[session_id].append({"role": "user", "content": question})
+    session_histories[session_id].append({"role": "assistant", "content": response})
+
     return {
-        "answer": answer,
-        "sources": sources,
-        "history": session_histories[session_id]
+        "answer": response,
+        "sources": [
+            {
+                "video": d.metadata.get("video_label"),
+                "title": d.metadata.get("title"),
+                "chunk": d.page_content[:150]
+            }
+            for d in docs[:3]
+        ]
     }
 
-async def stream_chat_with_rag(session_id: str, question: str):
-    """Stream chat response token by token"""
-    
-    vector_store = get_vector_store(session_id)
-    retriever = vector_store.as_retriever(
-        search_kwargs={"k": 6}
-    )
-    
-    # Get relevant docs
-    docs = retriever.get_relevant_documents(question)
-    
-    context = "\n\n".join([
-        f"[Video {doc.metadata.get('video_id', '?')}] {doc.page_content}"
-        for doc in docs
-    ])
-    
-    # Get history
-    history = ""
-    if session_id in session_histories:
-        for msg in session_histories[session_id][-6:]:
-            role = "User" if msg["role"] == "user" else "Assistant"
-            history += f"{role}: {msg['content']}\n"
-    
-    # Build prompt
-    full_prompt = SYSTEM_PROMPT.format(
-        context=context,
-        chat_history=history,
-        question=question
-    )
-    
-    llm = get_llm(streaming=True)
-    
-    full_response = ""
-    async for chunk in llm.astream(full_prompt):
-        token = chunk.content
-        full_response += token
-        yield token
-    
-    # Save to history
-    sources = []
-    for doc in docs[:3]:
-        sources.append({
-            "video": f"Video {doc.metadata.get('video_id', '?')}",
-            "platform": doc.metadata.get("platform", "unknown"),
-            "creator": doc.metadata.get("creator", "Unknown"),
-            "chunk": doc.page_content[:150] + "...",
-        })
-    
-    if session_id not in session_histories:
-        session_histories[session_id] = []
-    session_histories[session_id].append({
-        "role": "user", "content": question
-    })
-    session_histories[session_id].append({
-        "role": "assistant",
-        "content": full_response,
-        "sources": sources
-    })
 
+# -----------------------------
+# STREAM CHAT
+# -----------------------------
+async def stream_chat_with_rag(session_id: str, question: str):
+
+    store = get_vector_store(session_id)
+    retriever = store.as_retriever(search_kwargs={"k": 8})
+
+    docs = safe_retrieve(retriever, question)
+
+    context = build_context(docs)
+
+    history = session_histories.get(session_id, [])
+    history_text = "\n".join(
+        f"{m['role']}: {m['content']}" for m in history[-6:]
+    )
+
+    prompt = ChatPromptTemplate.from_template(SYSTEM_PROMPT)
+    llm = get_llm(streaming=True)
+
+    chain = prompt | llm
+
+    full = ""
+
+    async for chunk in chain.astream({
+        "context": context,
+        "history": history_text,
+        "question": question
+    }):
+        token = chunk.content if hasattr(chunk, "content") else str(chunk)
+        full += token
+        yield token
+
+    session_histories.setdefault(session_id, [])
+    session_histories[session_id].append({"role": "user", "content": question})
+    session_histories[session_id].append({"role": "assistant", "content": full})
+
+
+# -----------------------------
+# CLEAR SESSION
+# -----------------------------
 def clear_session(session_id: str):
-    """Clear session memory"""
-    if session_id in session_memories:
-        del session_memories[session_id]
-    if session_id in session_histories:
-        del session_histories[session_id]
+    session_histories.pop(session_id, None)

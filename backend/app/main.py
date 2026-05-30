@@ -5,17 +5,32 @@ from pydantic import BaseModel
 from typing import Optional
 import uuid
 import json
-import asyncio
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
 
 from .transcript import get_video_data
-from .embeddings import embed_video_transcript, delete_session
+from .embeddings import embed_video_transcript, delete_session as delete_vector_session
 from .rag import chat_with_rag, stream_chat_with_rag, clear_session
 
-app = FastAPI(title="CreatorJoy RAG API", version="1.0.0")
+# -------------------------
+# LOGGING (PRODUCTION READY)
+# -------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+logger = logging.getLogger(__name__)
 
+app = FastAPI(
+    title="CreatorJoy RAG API",
+    version="1.0.0"
+)
+
+# -------------------------
+# CORS
+# -------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,161 +39,213 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Request models
+# -------------------------
+# MODELS
+# -------------------------
 class VideoRequest(BaseModel):
     video_a_url: str
     video_b_url: str
+
 
 class ChatRequest(BaseModel):
     session_id: str
     question: str
     stream: Optional[bool] = True
 
-# Store session data
+
+# -------------------------
+# MEMORY STORE (TEMPORARY)
+# (later replace with Redis / DB)
+# -------------------------
 sessions = {}
 
+
+# -------------------------
+# HEALTH
+# -------------------------
 @app.get("/")
 def root():
     return {
         "status": "running",
         "message": "CreatorJoy RAG API",
         "version": "1.0.0",
-        "endpoints": {
-            "process": "POST /api/process-videos",
-            "chat": "POST /api/chat",
-            "session": "GET /api/session/{session_id}",
-            "health": "GET /api/health"
-        }
     }
+
 
 @app.get("/api/health")
 def health():
-    return {"status": "healthy", "service": "CreatorJoy RAG API"}
+    return {"status": "healthy"}
 
+
+# -------------------------
+# PROCESS VIDEOS
+# -------------------------
 @app.post("/api/process-videos")
 async def process_videos(request: VideoRequest):
-    """Process two videos - get transcripts, embed into ChromaDB"""
-    
+
     session_id = str(uuid.uuid4())
-    
+    logger.info(f"New session created: {session_id}")
+
     try:
-        print(f"Processing videos for session {session_id}")
-        
-        # Get Video A data
-        print(f"Fetching Video A: {request.video_a_url}")
-        video_a_data = get_video_data(request.video_a_url, "A")
-        
-        # Get Video B data  
-        print(f"Fetching Video B: {request.video_b_url}")
-        video_b_data = get_video_data(request.video_b_url, "B")
-        
-        # Embed both videos into ChromaDB
-        print("Embedding transcripts...")
-        chunks_a = embed_video_transcript(video_a_data, session_id)
-        chunks_b = embed_video_transcript(video_b_data, session_id)
-        
-        # Store session info
+        # ---------------- Video A ----------------
+        logger.info("[1/4] Fetching Video A...")
+        video_a = get_video_data(request.video_a_url, "A")
+        logger.info(f"Video A: {video_a['metadata'].get('title')}")
+
+        # ---------------- Video B ----------------
+        logger.info("[2/4] Fetching Video B...")
+        video_b = get_video_data(request.video_b_url, "B")
+        logger.info(f"Video B: {video_b['metadata'].get('title')}")
+
+        # ---------------- Embedding ----------------
+        logger.info("[3/4] Embedding Video A...")
+        chunks_a = embed_video_transcript(video_a, session_id)
+
+        logger.info("[4/4] Embedding Video B...")
+        chunks_b = embed_video_transcript(video_b, session_id)
+
+        total = chunks_a + chunks_b
+        logger.info(f"Embedding complete: {total} chunks")
+
+        # ---------------- SESSION STORE ----------------
         sessions[session_id] = {
             "video_a": {
                 "url": request.video_a_url,
-                "metadata": video_a_data["metadata"],
-                "transcript_preview": video_a_data["transcript"][:300],
+                "metadata": video_a["metadata"],
+                "transcript_preview": video_a.get("transcript", "")[:300],
                 "chunks_count": chunks_a,
             },
             "video_b": {
                 "url": request.video_b_url,
-                "metadata": video_b_data["metadata"],
-                "transcript_preview": video_b_data["transcript"][:300],
+                "metadata": video_b["metadata"],
+                "transcript_preview": video_b.get("transcript", "")[:300],
                 "chunks_count": chunks_b,
             },
-            "total_chunks": chunks_a + chunks_b,
+            "total_chunks": total,
         }
-        
-        print(f"Session {session_id} ready! {chunks_a + chunks_b} total chunks")
-        
+
         return {
             "success": True,
             "session_id": session_id,
-            "video_a": sessions[session_id]["video_a"],
-            "video_b": sessions[session_id]["video_b"],
-            "total_chunks_embedded": chunks_a + chunks_b,
-            "message": "Videos processed successfully! Ready to chat."
+            **sessions[session_id],
+            "total_chunks_embedded": total,
+            "message": "Videos processed successfully",
+            "suggested_questions": [
+                "Why did Video A get more engagement than Video B?",
+                "What's the engagement rate of each video?",
+                "Compare hooks in first 5 seconds",
+                "Who created each video?",
+                "Suggest improvements for Video B",
+            ]
         }
-        
+
     except Exception as e:
-        # Clean up on error
-        delete_session(session_id)
+        logger.error(f"process_videos failed: {str(e)}")
+
+        # cleanup
+        try:
+            delete_vector_session(session_id)
+            clear_session(session_id)
+        except:
+            pass
+
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# -------------------------
+# CHAT (STREAM + NON STREAM)
+# -------------------------
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
-    """Chat with RAG - supports streaming"""
-    
+
     if request.session_id not in sessions:
         raise HTTPException(
             status_code=404,
             detail="Session not found. Please process videos first."
         )
-    
+
     if request.stream:
-        # Streaming response
+
         async def generate():
             try:
                 yield f"data: {json.dumps({'type': 'start'})}\n\n"
-                
+
                 full_response = ""
+
                 async for token in stream_chat_with_rag(
                     request.session_id,
                     request.question
                 ):
                     full_response += token
                     yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
-                
+
                 yield f"data: {json.dumps({'type': 'done', 'full_response': full_response})}\n\n"
-                
+
             except Exception as e:
+                logger.error(f"stream error: {e}")
                 yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
-        
+
         return StreamingResponse(
             generate(),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
-                "X-Accel-Buffering": "no",
+                "X-Accel-Buffering": "no"
             }
         )
-    else:
-        # Non-streaming response
-        result = await chat_with_rag(request.session_id, request.question)
-        return {"success": True, **result}
 
+    result = await chat_with_rag(request.session_id, request.question)
+    return {"success": True, **result}
+
+
+# -------------------------
+# SESSION INFO
+# -------------------------
 @app.get("/api/session/{session_id}")
 def get_session(session_id: str):
-    """Get session info"""
+
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
-    return {"session_id": session_id, **sessions[session_id]}
 
+    return {
+        "session_id": session_id,
+        **sessions[session_id]
+    }
+
+
+# -------------------------
+# DELETE SESSION
+# -------------------------
 @app.delete("/api/session/{session_id}")
 def delete_session_endpoint(session_id: str):
-    """Delete a session"""
-    if session_id in sessions:
-        delete_session(session_id)
-        clear_session(session_id)
-        del sessions[session_id]
-    return {"success": True, "message": "Session deleted"}
 
+    if session_id in sessions:
+        try:
+            delete_vector_session(session_id)
+            clear_session(session_id)
+            del sessions[session_id]
+        except Exception as e:
+            logger.warning(f"delete session warning: {e}")
+
+    return {
+        "success": True,
+        "message": "Session deleted"
+    }
+
+
+# -------------------------
+# SUGGESTED QUESTIONS
+# -------------------------
 @app.get("/api/suggested-questions")
 def suggested_questions():
-    """Get suggested questions for the chat"""
     return {
         "questions": [
             "Why did Video A get more engagement than Video B?",
             "What's the engagement rate of each video?",
-            "Compare the hooks in the first 5 seconds of both videos",
-            "Who's the creator of Video B and what's their follower count?",
-            "Suggest improvements for Video B based on what worked in Video A",
+            "Compare hooks in first 5 seconds",
+            "Who created Video B?",
+            "Suggest improvements for Video B",
+            "Which video has better structure?",
             "What topics are covered in Video A?",
-            "Which video has better audience retention based on the transcript?",
         ]
     }

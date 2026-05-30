@@ -48,6 +48,43 @@ The goal is to help creators understand why one video performed better than anot
 
 ---
 
+## System Overview
+
+           ┌──────────────────────────────┐
+           │      Frontend (Swagger / UI) │
+           └──────────────┬───────────────┘
+                          │
+                          ▼
+           ┌──────────────────────────────┐
+           │      FastAPI Backend         │
+           │  /api/process-videos         │
+           │  /api/chat                   │
+           └──────────────┬───────────────┘
+                          │
+        ┌─────────────────┼──────────────────┐
+        ▼                 ▼                  ▼
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│ YouTube Flow │  │ Instagram Flow│  │ Embedding    │
+│              │  │              │  │ Pipeline     │
+└──────┬───────┘  └──────┬───────┘  └──────┬───────┘
+       │                 │                 │
+       ▼                 ▼                 ▼
+ yt-dlp + transcript   yt-dlp + audio   Gemini Embeddings
+ API (fallback + SS)   extraction       (batchEmbedContents)
+       │                 │                 │
+       └──────┬──────────┴──────────┬──────┘
+              ▼                     ▼
+        Smart Chunking        Vector Store
+        (RAG chunks)          (ChromaDB)
+              │                     │
+              └──────────┬──────────┘
+                         ▼
+                 RAG Chat System
+                 (Gemini LLM)
+                         │
+                         ▼
+              Streaming Response API
+
 ## Run Backend
 
 ```bash

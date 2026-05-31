@@ -48,34 +48,62 @@ The goal is to help creators understand why one video performed better than anot
 
 ---
 
-## 🧠 System Architecture
+##  System Architecture
 
 ```mermaid
-flowchart TD
+flowchart LR
 
-    A[Frontend (Swagger / UI)] --> B[FastAPI Backend]
+    U[User] --> F[Frontend / Swagger UI]
 
-    B --> C[YouTube Pipeline]
-    B --> D[Instagram Pipeline]
-    B --> E[Embedding Pipeline]
+    F --> API[FastAPI Backend]
 
-    C --> C1[yt-dlp + YouTube Transcript API]
-    D --> D1[yt-dlp + Whisper Audio Transcription]
+    API --> YT[YouTube Video]
+    API --> IG[Instagram Reel]
 
-    C1 --> F[Smart Chunking]
-    D1 --> F
+    %% YouTube Pipeline
+    YT --> YT1[yt-dlp Metadata Extraction]
+    YT --> YT2[YouTube Transcript API]
 
-    F --> G[Gemini Embeddings API]
+    %% Instagram Pipeline
+    IG --> IG1[Apify Instagram Scraper]
+    IG --> IG2[Audio Extraction]
+    IG2 --> IG3[Whisper Transcription]
 
-    G --> H[ChromaDB Vector Store]
+    %% Merge Content
+    YT1 --> P[Content Processing]
+    YT2 --> P
 
-    H --> I[RAG Chat System (Gemini LLM)]
+    IG1 --> P
+    IG3 --> P
 
-    I --> J[Streaming Response API]
+    P --> C[Smart Chunking]
 
-## Run Backend
+    C --> E[Gemini Embeddings]
 
-```bash
-cd backend
-pip install -r requirements.txt
-python run.py
+    E --> DB[ChromaDB Vector Store]
+
+    DB --> RAG[RAG Retrieval Layer]
+
+    RAG --> LLM[Gemini LLM]
+
+    LLM --> CHAT[Chat & Analysis Response]
+
+    CHAT --> F
+```
+
+### Processing Flow
+
+1. User submits YouTube or Instagram video URLs.
+2. The backend extracts available metadata such as title, creator, views, likes, comments, hashtags, and duration.
+3. Video transcripts are collected:
+
+   * YouTube videos use the YouTube Transcript API.
+   * Instagram reels use Whisper-based speech transcription.
+4. Transcript content is cleaned and divided into semantic chunks.
+5. Gemini Embeddings converts chunks into vector representations.
+6. ChromaDB stores and retrieves relevant chunks during conversations.
+7. A Retrieval-Augmented Generation (RAG) pipeline supplies relevant context to Gemini.
+8. Gemini generates answers, summaries, and insights grounded in the video content.
+
+```
+```

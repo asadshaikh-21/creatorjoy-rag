@@ -116,6 +116,9 @@ def get_youtube_transcript(url: str) -> Dict[str, Any]:
     # -------------------------
     # TRANSCRIPT FETCH
     # -------------------------
+    # -------------------------
+    # TRANSCRIPT FETCH
+    # -------------------------
     raw = safe_transcript_fetch(video_id)
 
     texts = []
@@ -130,11 +133,34 @@ def get_youtube_transcript(url: str) -> Dict[str, Any]:
             texts.append(clean_text(text))
 
     # -------------------------
-    # SMART FALLBACK (IMPORTANT FIX)
+    # WHISPER FALLBACK
     # -------------------------
     if not texts:
         print(f"[WARN] No transcript found for {video_id}")
+        print("[INFO] Falling back to Whisper transcription...")
 
+        audio_path = None
+
+        try:
+            audio_path = extract_audio(url)
+
+            whisper_text = transcribe_audio(audio_path)
+
+            if whisper_text and whisper_text.strip():
+                texts = [clean_text(whisper_text)]
+                print("[SUCCESS] Whisper transcription completed")
+
+        except Exception as e:
+            print(f"[WHISPER FALLBACK ERROR] {e}")
+
+        finally:
+            if audio_path and os.path.exists(audio_path):
+                os.remove(audio_path)
+
+    # -------------------------
+    # LAST RESORT FALLBACK
+    # -------------------------
+    if not texts:
         fallback = f"""
         Title: {metadata['title']}
         Creator: {metadata['creator']}
@@ -146,6 +172,7 @@ def get_youtube_transcript(url: str) -> Dict[str, Any]:
         texts = [fallback]
 
     full_text = " ".join(texts)
+
     chunks = smart_chunk(full_text, max_words=80)
 
     return {
@@ -167,7 +194,11 @@ def get_instagram_transcript(url: str):
 
     audio_path = extract_audio(url)
 
-    transcript = transcribe_audio(audio_path)
+    try:
+        transcript = transcribe_audio(audio_path)
+    finally:
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
 
     extra_context = f"""
 Caption:
@@ -196,7 +227,7 @@ Comments:
             "platform": "instagram",
             "source": "instagram",
 
-            "thumbnail": metadata.get("thumbnail", ""),
+            "thumbnail": metadata.get("displayUrl", ""),
 
             "views": metadata.get("views", 0),
             "plays": metadata.get("plays", 0),

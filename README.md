@@ -1,109 +1,165 @@
 # CreatorJoy RAG Chatbot
 
-AI-powered RAG chatbot for comparing creator videos using transcript embeddings and vector search.
+AI-powered RAG chatbot for analyzing creator videos using transcript embeddings, vector search, and conversational retrieval.
 
-## What this project does
+## What This Project Does
 
-This project takes two social media video URLs (YouTube / Instagram), extracts transcripts + metadata, stores embeddings in a vector database, and allows users to chat with the content using a RAG pipeline.
+CreatorJoy allows users to submit YouTube videos and Instagram Reels, extract their content and metadata, store embeddings in a vector database, and interact with the videos through a Retrieval-Augmented Generation (RAG) chatbot.
 
-The goal is to help creators understand why one video performed better than another.
+The goal is to help creators understand video content, engagement patterns, and audience interaction through AI-powered analysis.
 
 ---
 
 ## Features
 
-- YouTube + Instagram video processing
-- Transcript extraction
-- Metadata analysis
-- Engagement rate calculation
-- ChromaDB vector storage
-- LangChain-based RAG chatbot
-- Gemini-powered responses
-- Session memory support
+* YouTube video processing
+* Instagram Reel processing
+* Transcript extraction
+* Whisper-based audio transcription
+* Metadata extraction
+* Engagement rate calculation
+* Semantic chunking
+* Gemini embeddings
+* ChromaDB vector storage
+* RAG-powered chatbot
+* Streaming AI responses
+* Session-based memory
 
 ---
 
 ## Tech Stack
 
 ### Backend
-- FastAPI
-- LangChain
-- ChromaDB
-- Gemini API
-- Python
 
-### Frontend (planned)
-- Next.js
-- TailwindCSS
+* FastAPI
+* Python
+* LangChain
+* ChromaDB
+* Google Gemini
+* Whisper
+* yt-dlp
+* Apify
+
+### Frontend (In Progress)
+
+* Next.js
+* TypeScript
+* Tailwind CSS
 
 ---
 
 ## Current Progress
 
-- Backend APIs setup
-- Vector embedding pipeline integrated
-- Gemini integration completed
-- Basic transcript extraction working
-- Frontend not started yet
+### Completed
+
+* FastAPI backend setup
+* Gemini integration
+* ChromaDB vector storage
+* YouTube transcript extraction
+* Instagram Reel metadata extraction
+* Instagram audio transcription using Whisper
+* RAG chat pipeline
+* Streaming responses
+
+### In Progress
+
+* Frontend dashboard
+* Enhanced analytics and insights
+* Video comparison UI
 
 ---
 
-##  System Architecture
+## System Architecture
 
 ```mermaid
 flowchart LR
 
-    U[User] --> F[Frontend / Swagger UI]
+    U[User] --> F[Frontend]
 
     F --> API[FastAPI Backend]
 
-    API --> YT[YouTube Video]
-    API --> IG[Instagram Reel]
+    API --> YT[YouTube]
+    API --> IG[Instagram]
 
-    %% YouTube Pipeline
-    YT --> YT1[yt-dlp Metadata Extraction]
-    YT --> YT2[YouTube Transcript API]
+    YT --> YTM[Metadata Extraction]
+    YT --> YTT[Transcript API]
 
-    %% Instagram Pipeline
-    IG --> IG1[Apify Instagram Scraper]
-    IG --> IG2[Audio Extraction]
-    IG2 --> IG3[Whisper Transcription]
+    IG --> IGM[Apify Scraper]
+    IG --> IGA[Audio Extraction]
 
-    %% Merge Content
-    YT1 --> P[Content Processing]
-    YT2 --> P
+    IGA --> WH[Whisper]
 
-    IG1 --> P
-    IG3 --> P
+    YTM --> PROC[Content Processing]
+    YTT --> PROC
 
-    P --> C[Smart Chunking]
+    IGM --> PROC
+    WH --> PROC
 
-    C --> E[Gemini Embeddings]
+    PROC --> CHUNK[Smart Chunking]
 
-    E --> DB[ChromaDB Vector Store]
+    CHUNK --> EMBED[Gemini Embeddings]
 
-    DB --> RAG[RAG Retrieval Layer]
+    EMBED --> DB[ChromaDB]
+
+    DB --> RAG[RAG Retrieval]
 
     RAG --> LLM[Gemini LLM]
 
-    LLM --> CHAT[Chat & Analysis Response]
+    LLM --> RESP[Chat Response]
 
-    CHAT --> F
+    RESP --> F
 ```
 
-### Processing Flow
+## Processing Flow
 
-1. User submits YouTube or Instagram video URLs.
-2. The backend extracts available metadata such as title, creator, views, likes, comments, hashtags, and duration.
-3. Video transcripts are collected:
+1. Users submit YouTube videos or Instagram Reel URLs.
+2. Metadata such as title, creator, views, likes, comments, hashtags, and duration is extracted.
+3. Transcript content is collected:
 
    * YouTube videos use the YouTube Transcript API.
-   * Instagram reels use Whisper-based speech transcription.
-4. Transcript content is cleaned and divided into semantic chunks.
+   * Instagram Reels use Whisper after audio extraction.
+4. Content is cleaned and divided into semantic chunks.
 5. Gemini Embeddings converts chunks into vector representations.
-6. ChromaDB stores and retrieves relevant chunks during conversations.
-7. A Retrieval-Augmented Generation (RAG) pipeline supplies relevant context to Gemini.
-8. Gemini generates answers, summaries, and insights grounded in the video content.
+6. ChromaDB stores embeddings for semantic retrieval.
+7. Relevant chunks are retrieved through the RAG pipeline.
+8. Gemini generates context-aware responses grounded in video content.
+9. Responses are streamed back to the user.
+
+---
+
+## Run Backend
+
+```bash
+cd backend
+
+pip install -r requirements.txt
+
+python run.py
+```
+
+---
+
+## API Documentation
+
+After starting the server:
+
+```text
+http://localhost:8000/docs
+```
+
+Swagger UI can be used to test all endpoints.
+
+---
+
+## Future Improvements
+
+* Advanced creator analytics
+* Video-to-video comparison insights
+* Trend detection
+* Audience sentiment analysis
+* Thumbnail analysis
+* Multi-video knowledge base
+* Production deployment
 
 ```
 ```

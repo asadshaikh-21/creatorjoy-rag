@@ -169,23 +169,44 @@ def get_instagram_transcript(url: str):
 
     transcript = transcribe_audio(audio_path)
 
-    chunks = smart_chunk(transcript, max_words=80)
+    extra_context = f"""
+Caption:
+{metadata.get('caption', '')}
+
+Hashtags:
+{' '.join(metadata.get('hashtags', []))}
+
+Comments:
+{' '.join(metadata.get('top_comments', []))}
+"""
+
+    full_content = transcript + "\n\n" + extra_context
+
+    chunks = smart_chunk(full_content, max_words=80)
 
     return {
         "success": True,
-        "transcript": transcript,
+        "transcript": full_content,
         "chunks": chunks,
         "timestamps": list(range(len(chunks))),
         "metadata": {
-            "video_id": metadata.get("video_id", "instagram"),
-            "title": metadata.get("title", "Instagram Reel"),
-            "creator": metadata.get("creator", "Unknown"),
+            "video_id": metadata.get("video_id"),
+            "title": metadata.get("title"),
+            "creator": metadata.get("creator"),
             "platform": "instagram",
             "source": "instagram",
+
+            "thumbnail": metadata.get("thumbnail", ""),
+
             "views": metadata.get("views", 0),
+            "plays": metadata.get("plays", 0),
             "likes": metadata.get("likes", 0),
             "comments": metadata.get("comments", 0),
             "duration": metadata.get("duration", 0),
+
+            "hashtags": metadata.get("hashtags", []),
+            "caption": metadata.get("caption", ""),
+
             "url": url,
         },
         "label": ""

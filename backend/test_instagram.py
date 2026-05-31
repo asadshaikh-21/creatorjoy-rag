@@ -1,22 +1,68 @@
-# test_instagram.py
+from apify_client import ApifyClient
+from dotenv import load_dotenv
+import os
 
-from app.transcript import get_video_data
-from app.embeddings import embed_video_transcript
-import uuid
+load_dotenv()
 
-url = "https://www.instagram.com/reel/DJKEFtHRk5X/"
-session_id = str(uuid.uuid4())
+APIFY_TOKEN = os.getenv("APIFY_TOKEN")
 
-print("Fetching Instagram data...")
 
-data = get_video_data(url, "IG_TEST")
+def fetch_instagram_info(url: str):
+    """
+    Fetch Instagram Reel metadata using Apify.
+    """
 
-print("Chunks:", len(data["chunks"]))
-print("Transcript length:", len(data["transcript"]))
+    client = ApifyClient(APIFY_TOKEN)
 
-print("\nEmbedding...")
+    run_input = {
+        "directUrls": [url],
+        "resultsLimit": 1
+    }
 
-count = embed_video_transcript(data, session_id)
+    run = client.actor("apify/instagram-scraper").call(
+        run_input=run_input
+    )
 
-print("\nEmbedded chunks:", count)
-print("Session:", session_id)
+    dataset_id = run.default_dataset_id
+
+    items = list(
+        client.dataset(dataset_id).iterate_items()
+    )
+
+    if not items:
+        return {
+            "video_id": "instagram",
+            "title": "Instagram Reel",
+            "creator": "Unknown",
+            "thumbnail": "",
+            "views": 0,
+            "plays": 0,
+            "likes": 0,
+            "comments": 0,
+            "duration": 0,
+            "hashtags": [],
+            "caption": "",
+        }
+
+    item = items[0]
+
+    return {
+        "video_id": item.get("id", ""),
+        "title": (item.get("caption", "")[:120] or "Instagram Reel"),
+        "caption": item.get("caption", ""),
+        "creator": item.get("ownerUsername", "Unknown"),
+
+        # THUMBNAIL
+        "thumbnail": item.get("displayUrl", ""),
+
+        # STATS
+        "views": item.get("videoViewCount", 0),
+        "plays": item.get("videoPlayCount", 0),
+        "likes": item.get("likesCount", 0),
+        "comments": item.get("commentsCount", 0),
+
+        # EXTRA
+        "duration": item.get("videoDuration", 0),
+        "hashtags": item.get("hashtags", []),
+        "url": item.get("url", url),
+    }

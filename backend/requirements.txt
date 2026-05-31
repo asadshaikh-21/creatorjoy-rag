@@ -11,3 +11,4 @@ httpx
 yt-dlp
 google-generativeai
 sse-starlette
+apify-client

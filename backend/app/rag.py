@@ -49,6 +49,7 @@ def build_context(docs) -> str:
 VIDEO: {m.get("video_label")}
 TITLE: {m.get("title")}
 CREATOR: {m.get("creator")}
+FOLLOWERS: {m.get("follower_count")}
 VIEWS: {m.get("views")}
 LIKES: {m.get("likes")}
 COMMENTS: {m.get("comments")}

@@ -134,6 +134,7 @@ def embed_video_transcript(video_data: dict, session_id: str) -> int:
                     "video_label": f"Video {label}",
                     "title": metadata.get("title", "Unknown"),
                     "creator": metadata.get("creator", "Unknown"),
+                    "follower_count": metadata.get("follower_count", 0),
                     "views": metadata.get("views", 0),
                     "likes": metadata.get("likes", 0),
                     "comments": metadata.get("comments", 0),

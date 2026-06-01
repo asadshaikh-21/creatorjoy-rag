@@ -86,6 +86,7 @@ def get_youtube_transcript(url: str) -> Dict[str, Any]:
         "comments": 0,
         "duration": 0,
         "upload_date": "Unknown",
+        "follower_count": 0,
         "url": url
     }
 
@@ -111,6 +112,12 @@ def get_youtube_transcript(url: str) -> Dict[str, Any]:
                 "comments": info.get("comment_count", 0),
                 "duration": info.get("duration", 0),
                 "upload_date": info.get("upload_date", "Unknown"),
+                "follower_count": (
+                    info.get("channel_follower_count")
+                    or info.get("subscriber_count")
+                    or info.get("channel_subscriber_count")
+                    or 0
+                ),
             })
 
     except Exception as e:
@@ -235,6 +242,7 @@ Comments:
             "video_id": metadata.get("video_id"),
             "title": metadata.get("title"),
             "creator": metadata.get("creator"),
+            "follower_count": metadata.get("follower_count", 0),
             "platform": "instagram",
             "source": "instagram",
             "thumbnail": (

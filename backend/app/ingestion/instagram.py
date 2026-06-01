@@ -7,7 +7,54 @@ load_dotenv()
 APIFY_TOKEN = os.getenv("APIFY_TOKEN")
 
 client = ApifyClient(APIFY_TOKEN)
+profile_followers_cache = {}
 
+def fetch_instagram_profile_followers(username: str) -> int:
+    if not username or username == "Unknown":
+        return 0
+
+    if username in profile_followers_cache:
+        return profile_followers_cache[username]
+
+    try:
+        run_input = {
+            "usernames": [username],
+            "resultsLimit": 1
+        }
+
+        run = client.actor("apify/instagram-profile-scraper").call(
+            run_input=run_input
+        )
+
+        items = list(
+            client.dataset(run.default_dataset_id).iterate_items()
+        )
+
+        if not items:
+            profile_followers_cache[username] = 0
+            return 0
+
+        profile = items[0]
+        print("PROFILE KEYS:", profile.keys())
+        print("PROFILE ITEM:", profile)
+
+        count = (
+            profile.get("followersCount")
+            or profile.get("followers_count")
+            or profile.get("followers")
+            or profile.get("numberOfFollowers")
+            or profile.get("edge_followed_by", {}).get("count")
+            or profile.get("ownerFollowersCount")
+            or 0
+        )
+
+        profile_followers_cache[username] = count
+        return count
+
+    except Exception as e:
+        print(f"[INSTAGRAM PROFILE FOLLOWERS WARN] {e}")
+        profile_followers_cache[username] = 0
+        return 0
 
 def fetch_instagram_info(url: str):
     """
@@ -34,19 +81,16 @@ def fetch_instagram_info(url: str):
         raise Exception("No Instagram data returned")
 
     item = items[0]
+    creator = item.get("ownerUsername", "Unknown")
+    follower_count = fetch_instagram_profile_followers(creator)
 
     return {
         "video_id": item.get("id", ""),
         "title": item.get("caption", "")[:120],
         "caption": item.get("caption", ""),
-        "creator": item.get("ownerUsername", "Unknown"),
+        "creator": creator,
         "creator_name": item.get("ownerFullName", ""),
-        "follower_count": (
-            item.get("ownerFollowersCount")
-            or item.get("followersCount")
-            or item.get("owner", {}).get("followersCount", 0)
-            or 0
-        ),
+        "follower_count": follower_count,
         "thumbnail": (
             item.get("displayUrl")
             or item.get("thumbnailUrl")

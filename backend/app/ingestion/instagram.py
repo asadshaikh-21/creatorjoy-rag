@@ -41,6 +41,16 @@ def fetch_instagram_info(url: str):
         "caption": item.get("caption", ""),
         "creator": item.get("ownerUsername", "Unknown"),
         "creator_name": item.get("ownerFullName", ""),
+        "thumbnail": (
+            item.get("displayUrl")
+            or item.get("thumbnailUrl")
+            or item.get("thumbnailSrc")
+            or item.get("imageUrl")
+            or item.get("coverUrl")
+            or ""
+        ),
+        "displayUrl": item.get("displayUrl", ""),
+        "videoUrl": item.get("videoUrl", ""),
         "views": item.get("videoViewCount", 0),
         "plays": item.get("videoPlayCount", 0),
         "likes": item.get("likesCount", 0),

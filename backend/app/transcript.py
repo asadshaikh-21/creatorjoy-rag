@@ -1,3 +1,4 @@
+import os
 import re
 import json
 import subprocess
@@ -226,9 +227,15 @@ Comments:
             "creator": metadata.get("creator"),
             "platform": "instagram",
             "source": "instagram",
-
-            "thumbnail": metadata.get("displayUrl", ""),
-
+            "thumbnail": (
+                metadata.get("thumbnail")
+                or metadata.get("displayUrl")
+                or metadata.get("thumbnailUrl")
+                or metadata.get("thumbnailSrc")
+                or metadata.get("imageUrl")
+                or metadata.get("coverUrl")
+                or ""
+            ),
             "views": metadata.get("views", 0),
             "plays": metadata.get("plays", 0),
             "likes": metadata.get("likes", 0),

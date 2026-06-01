@@ -8,12 +8,14 @@ import json
 import logging
 from dotenv import load_dotenv
 from app.services.ingestion_service import process_instagram
+import requests
 
 load_dotenv()
 
 from .transcript import get_video_data
 from .embeddings import embed_video_transcript, delete_session as delete_vector_session
 from .rag import chat_with_rag, stream_chat_with_rag, clear_session
+from fastapi.responses import StreamingResponse, Response
 
 # -------------------------
 # LOGGING (PRODUCTION READY)
@@ -47,6 +49,32 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/api/image-proxy")
+def image_proxy(url: str):
+    try:
+        r = requests.get(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0",
+                "Referer": "https://www.instagram.com/",
+                "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+            },
+            timeout=15,
+        )
+        r.raise_for_status()
+
+        return Response(
+            content=r.content,
+            media_type=r.headers.get("content-type", "image/jpeg"),
+            headers={
+                "Cache-Control": "public, max-age=3600",
+                "Access-Control-Allow-Origin": "*",
+            },
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Image proxy failed: {e}")
 
 # -------------------------
 # MODELS

@@ -1,71 +1,41 @@
-# CreatorJoy RAG Chatbot
+# CreatorJoy
 
-AI-powered RAG chatbot for analyzing creator videos using transcript embeddings, vector search, and conversational retrieval.
+AI-powered creator analytics platform that uses Retrieval-Augmented Generation (RAG) to analyze YouTube videos and Instagram Reels through natural language conversations.
 
-## What This Project Does
-
-CreatorJoy allows users to submit YouTube videos and Instagram Reels, extract their content and metadata, store embeddings in a vector database, and interact with the videos through a Retrieval-Augmented Generation (RAG) chatbot.
-
-The goal is to help creators understand video content, engagement patterns, and audience interaction through AI-powered analysis.
+CreatorJoy extracts transcripts, metadata, engagement metrics, hashtags, creator information, and audience signals, then combines semantic search with Gemini-powered reasoning to generate actionable content insights.
 
 ---
 
 ## Features
 
-* YouTube video processing
-* Instagram Reel processing
-* Transcript extraction
-* Whisper-based audio transcription
-* Metadata extraction
-* Engagement rate calculation
+* YouTube video ingestion
+* Instagram Reel ingestion
+* Automatic transcript extraction
+* Whisper fallback for videos without captions
+* Metadata and engagement analysis
+* Creator profile insights
 * Semantic chunking
 * Gemini embeddings
 * ChromaDB vector storage
-* RAG-powered chatbot
+* Retrieval-Augmented Generation (RAG)
 * Streaming AI responses
-* Session-based memory
+* Session-based chat memory
 
 ---
 
 ## Tech Stack
 
-### Backend
-
-* FastAPI
-* Python
-* LangChain
-* ChromaDB
-* Google Gemini
-* Whisper
-* yt-dlp
-* Apify
-
-### Frontend (In Progress)
-
-* Next.js
-* TypeScript
-* Tailwind CSS
-
----
-
-## Current Progress
-
-### Completed
-
-* FastAPI backend setup
-* Gemini integration
-* ChromaDB vector storage
-* YouTube transcript extraction
-* Instagram Reel metadata extraction
-* Instagram audio transcription using Whisper
-* RAG chat pipeline
-* Streaming responses
-
-### In Progress
-
-* Frontend dashboard
-* Enhanced analytics and insights
-* Video comparison UI
+| Layer              | Technology                        |
+| ------------------ | --------------------------------- |
+| Frontend           | Next.js, TypeScript, Tailwind CSS |
+| Backend            | FastAPI, Python                   |
+| LLM                | Gemini 2.5 Flash                  |
+| Embeddings         | Gemini Embeddings                 |
+| Vector Database    | ChromaDB                          |
+| Speech-to-Text     | Faster Whisper                    |
+| Video Processing   | yt-dlp                            |
+| Instagram Metadata | Apify                             |
+| RAG Framework      | LangChain                         |
 
 ---
 
@@ -105,19 +75,19 @@ flowchart LR
 
     RAG --> LLM[Gemini LLM]
 
-    LLM --> RESP[Chat Response]
+    LLM --> RESP[Streaming Response]
 
     RESP --> F
 ```
 
-## Processing Flow
+## Processing Workflow
 
-1. Users submit YouTube videos or Instagram Reel URLs.
+1. User submits a YouTube video or Instagram Reel URL.
 2. Metadata such as title, creator, views, likes, comments, hashtags, and duration is extracted.
 3. Transcript content is collected:
 
-   * YouTube videos use the YouTube Transcript API.
-   * Instagram Reels use Whisper after audio extraction.
+   * YouTube Transcript API for captioned videos.
+   * Whisper fallback for videos without captions.
 4. Content is cleaned and divided into semantic chunks.
 5. Gemini Embeddings converts chunks into vector representations.
 6. ChromaDB stores embeddings for semantic retrieval.
@@ -127,7 +97,21 @@ flowchart LR
 
 ---
 
-## Run Backend
+## Cost-Efficient Architecture
+
+CreatorJoy is designed to minimize AI inference costs while maintaining response quality.
+
+* Gemini Embeddings for low-cost vector generation
+* ChromaDB self-hosted vector storage
+* Whisper invoked only when captions are unavailable
+* Semantic retrieval reduces LLM context size
+* Streaming responses improve user experience
+
+This architecture keeps processing costs low while enabling scalable creator analytics.
+
+---
+
+## Running the Backend
 
 ```bash
 cd backend
@@ -147,19 +131,28 @@ After starting the server:
 http://localhost:8000/docs
 ```
 
-Swagger UI can be used to test all endpoints.
+Swagger UI can be used to test all API endpoints.
 
 ---
 
-## Future Improvements
+## Roadmap
 
-* Advanced creator analytics
-* Video-to-video comparison insights
-* Trend detection
+* Multi-video creator comparison
+* Hook and retention analysis
+* Thumbnail effectiveness analysis
 * Audience sentiment analysis
-* Thumbnail analysis
-* Multi-video knowledge base
+* Trend detection across creator content
+* Creator growth recommendations
 * Production deployment
 
-```
-```
+---
+
+## Author
+
+Asad Shaikh
+
+Information Technology Student | Full-Stack Developer | AI Engineer
+
+* LinkedIn
+* GitHub
+* Portfolio

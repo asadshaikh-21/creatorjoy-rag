@@ -138,6 +138,8 @@ def embed_video_transcript(video_data: dict, session_id: str) -> int:
                     "likes": metadata.get("likes", 0),
                     "comments": metadata.get("comments", 0),
                     "engagement_rate": metadata.get("engagement_rate", 0),
+                    "hook_preview": video_data.get("hook_preview", ""),
+                    "is_hook": i == 0,
 
                     # Works for both YouTube & Instagram
                     "source": metadata.get("source", "youtube"),

@@ -58,12 +58,14 @@ def safe_transcript_fetch(video_id: str):
         api = YouTubeTranscriptApi()
         fetched = api.fetch(video_id)
         return [
-            {
-                "text": snippet.text,
-                "start": snippet.start,
-            }
-            for snippet in fetched
-        ]
+    {
+        "text": snippet.text,
+        "start": float(snippet.start),
+        "duration": float(getattr(snippet, "duration", 0) or 0),
+        "end": float(snippet.start) + float(getattr(snippet, "duration", 0) or 0),
+    }
+    for snippet in fetched
+]
     except Exception as e:
         print(f"[TRANSCRIPT ERROR] {e}")
         return []
@@ -122,6 +124,12 @@ def get_youtube_transcript(url: str) -> Dict[str, Any]:
     # -------------------------
     raw = safe_transcript_fetch(video_id)
 
+    hook_text = " ".join(
+    clean_text(item.get("text", ""))
+    for item in raw
+    if isinstance(item, dict) and item.get("start", 9999) <= 5
+).strip()
+
     texts = []
 
     for item in raw:
@@ -177,13 +185,14 @@ def get_youtube_transcript(url: str) -> Dict[str, Any]:
     chunks = smart_chunk(full_text, max_words=80)
 
     return {
-        "success": True,
-        "transcript": full_text,
-        "chunks": chunks,
-        "timestamps": list(range(len(chunks))),
-        "metadata": metadata,
-        "label": ""
-    }
+    "success": True,
+    "transcript": full_text,
+    "chunks": chunks,
+    "timestamps": list(range(len(chunks))),
+    "hook_preview": hook_text,
+    "metadata": metadata,
+    "label": ""
+}
 
 
 # -----------------------------
@@ -215,6 +224,7 @@ Comments:
     full_content = transcript + "\n\n" + extra_context
 
     chunks = smart_chunk(full_content, max_words=80)
+    hook_text = chunks[0] if chunks else ""
 
     return {
         "success": True,
@@ -244,6 +254,7 @@ Comments:
 
             "hashtags": metadata.get("hashtags", []),
             "caption": metadata.get("caption", ""),
+            "hook_preview": hook_text,
 
             "url": url,
         },

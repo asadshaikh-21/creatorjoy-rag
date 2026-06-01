@@ -53,6 +53,10 @@ VIEWS: {m.get("views")}
 LIKES: {m.get("likes")}
 COMMENTS: {m.get("comments")}
 ENGAGEMENT: {m.get("engagement_rate")}
+CHUNK: {m.get("chunk_index")}
+IS_HOOK: {m.get("is_hook", False)}
+HOOK_PREVIEW:
+{m.get("hook_preview", "")}
 
 CONTENT:
 {doc.page_content}
@@ -77,9 +81,15 @@ Question:
 {question}
 
 Rules:
-- Never hallucinate
-- Always compare A vs B when relevant
-- Use numbers (views, likes, engagement_rate)
+- Never hallucinate.
+- Use ONLY the provided context and history.
+- Always compare Video A vs Video B when relevant.
+- Use exact numbers when available: views, likes, comments, engagement_rate.
+- If the user asks about hooks, openings, intros, or the first 5 seconds, use HOOK_PREVIEW first.
+- If HOOK_PREVIEW exists for both videos, compare those openings directly.
+- If HOOK_PREVIEW is missing for one video, say which one is missing and use the earliest available chunk as fallback.
+- Cite evidence using the video label and chunk number, for example: Video A, chunk 0.
+- Do not say the first 5 seconds are unavailable if HOOK_PREVIEW is present in the context.
 - Structure output:
   1. Summary
   2. Video A

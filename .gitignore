@@ -1,24 +1,24 @@
+# Environment
+.env
+
+# Node Modules
+node_modules
+
+# Virtual Environment
+.venv/
+
+# ChromaDB
+chromadb/
+
+# Temp files
+temp/
+*.mp3
+*.wav
+
 # Python
-venv/
 __pycache__/
 *.pyc
 
-# Environment variables
-.env
-
-# Vector DB
-chroma_db/
-
-# Node
-node_modules/
-
-# Build
-dist/
-build/
-
-# VS Code
-.vscode/
-
-# OS
+# OS files
 .DS_Store
-backend/chromadb/
+Thumbs.db
